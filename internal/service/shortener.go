@@ -1,44 +1,40 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"sync"
+
+	"github.com/ziaulhaq/url-shortener/internal/repository"
 )
 
 type ShortenerService struct {
-	mu   sync.RWMutex
-	data map[string]string
+	repo repository.URLRepository
 }
 
-func NewShortenerService() *ShortenerService {
+func NewShortenerService(repo repository.URLRepository) *ShortenerService {
 	return &ShortenerService{
-		data: make(map[string]string),
+		repo: repo,
 	}
 }
 
-func (s *ShortenerService) Shorten(longURL string) string {
+func (s *ShortenerService) Shorten(ctx context.Context, longURL string) (string, error) {
 	code := generateCode(6)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	err := s.repo.Save(ctx, code, longURL)
+	if err != nil {
+		return "", err
+	}
 
-	s.data[code] = longURL
-	return code
+	return code, nil
 }
 
-func (s *ShortenerService) Resolve(code string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	url, ok := s.data[code]
-	return url, ok
+func (s *ShortenerService) Resolve(ctx context.Context, code string) (string, bool, error) {
+	return s.repo.FindByCode(ctx, code)
 }
 
 func generateCode(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
-
-	// URL safe string
 	return base64.RawURLEncoding.EncodeToString(b)[:n]
 }

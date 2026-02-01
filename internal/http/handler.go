@@ -51,14 +51,19 @@ func (h *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code := h.shortener.Shorten(req.URL)
+	// ✅ Level-2 change (context + error)
+	code, err := h.shortener.Shorten(r.Context(), req.URL)
+	if err != nil {
+		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
+		return
+	}
 
 	resp := shortenResponse{
 		ShortURL: h.baseURL + "/" + code,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) redirect(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +78,13 @@ func (h *Handler) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	longURL, ok := h.shortener.Resolve(code)
+	// ✅ Level-2 change (context + error)
+	longURL, ok, err := h.shortener.Resolve(r.Context(), code)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	if !ok {
 		http.NotFound(w, r)
 		return
