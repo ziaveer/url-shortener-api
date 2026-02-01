@@ -12,7 +12,9 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpHandler "github.com/ziaulhaq/url-shortener/internal/http"
+	"github.com/ziaulhaq/url-shortener/internal/metrics"
 	"github.com/ziaulhaq/url-shortener/internal/repository"
 	"github.com/ziaulhaq/url-shortener/internal/service"
 )
@@ -48,10 +50,13 @@ func main() {
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
+	// metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
 
+	instrumentedHandler := metrics.Instrument(mux)
 	server := &http.Server{
 		Addr:    ":8081",
-		Handler: mux,
+		Handler: instrumentedHandler,
 	}
 
 	go func() {
@@ -60,6 +65,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+	metrics.Register()
 
 	shutdownCh := make(chan os.Signal, 1)
 	signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
